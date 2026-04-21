@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CKG Viewer</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+/* ── reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  color: #1e293b;
+  background: #f1f5f9;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── layout ──────────────────────────────────────────────────────────────── */
+#layout { display: flex; height: 100vh; }
+
+#sidebar {
+  width: 260px;
+  min-width: 180px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* app name strip at the very top */
+#sidebar-header {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+#sidebar-header h1 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+#sidebar-header h1 .logo { font-size: 16px; }
+
+/* scrollable body */
+#sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+#sidebar-scroll::-webkit-scrollbar { width: 4px; }
+#sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+#sidebar-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+#sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+/* status strip at the very bottom */
+#sidebar-footer {
+  padding: 6px 14px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+  background: #fafafa;
+}
+
+/* ── section headers ─────────────────────────────────────────────────────── */
+.section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: #94a3b8;
+  padding: 14px 14px 5px;
+}
+
+/* ── resizer ─────────────────────────────────────────────────────────────── */
+#resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  z-index: 10;
+}
+#resizer:hover, #resizer:active { background: #94a3b8; }
+
+/* ── graph canvas ────────────────────────────────────────────────────────── */
+#graph {
+  flex: 1;
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(to right, #e2e8f033 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e8f033 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── file tree ───────────────────────────────────────────────────────────── */
+#file-list ul {
+  list-style: none;
+  padding-left: 0;
+}
+#file-list li { line-height: 1; }
+
+/* folder */
+.tree-folder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 14px;
+  cursor: pointer;
+  color: #374151;
+  font-weight: 600;
+  font-size: 12.5px;
+  border-radius: 0;
+  transition: background 0.1s;
+  user-select: none;
+}
+.tree-folder:hover { background: #f8fafc; }
+.tree-folder.open { color: #1e293b; }
+
+.chevron {
+  display: inline-block;
+  width: 10px;
+  font-size: 8px;
+  color: #cbd5e1;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.chevron::before { content: "▶"; }
+.tree-folder.open > .chevron { transform: rotate(90deg); color: #94a3b8; }
+
+.folder-icon { font-size: 13px; flex-shrink: 0; }
+
+.tree-children { padding-left: 16px; }
+
+/* file */
+.tree-file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 14px;
+  cursor: pointer;
+  border-radius: 0;
+  color: #475569;
+  transition: background 0.1s;
+}
+.tree-file:hover { background: #f8fafc; color: #1e293b; }
+.tree-file input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  accent-color: #2563EB;
+  flex-shrink: 0;
+}
+/* small coloured dot indicating it's a .py file */
+.file-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563EB;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+.tree-file:has(input:checked) .file-dot { opacity: 1; }
+.tree-file:has(input:checked) { color: #1e293b; font-weight: 500; }
+
+.tree-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+}
+
+/* ── filter rows ─────────────────────────────────────────────────────────── */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.filter-row:hover { background: #f8fafc; }
+.filter-row input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.filter-label {
+  color: #374151;
+  font-size: 12px;
+}
+
+/* node-type swatch: a small shape mirroring vis.js */
+.swatch {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+}
+
+/* edge-type swatch: a short coloured line */
+.swatch-line {
+  display: inline-block;
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* vis.js tooltip container */
+.vis-tooltip {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.10) !important;
+  padding: 8px 10px !important;
+  color: #1e293b !important;
+  font-family: ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 12px !important;
+  max-width: 340px !important;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="layout">
+
+  <div id="sidebar">
+
+    <div id="sidebar-header">
+      <h1><span class="logo">🔍</span> Code Graph</h1>
+    </div>
+
+    <div id="sidebar-scroll">
+
+      <div class="section-title">Files</div>
+      <div id="file-list"></div>
+
+      <div class="section-title">Node types</div>
+      <div id="node-type-filters"></div>
+
+      <div class="section-title">Edge types</div>
+      <div id="edge-type-filters"></div>
+
+    </div>
+
+    <div id="sidebar-footer">
+      <span id="status">Loading…</span>
+    </div>
+
+  </div>
+
+  <div id="resizer"></div>
+  <div id="graph"></div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

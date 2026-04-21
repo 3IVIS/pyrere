@@ -1,0 +1,16 @@
+[project]
+name = "coddingtoddly"
+version = "0.1.0"
+dependencies = [
+    # ── Option A: legacy bundle (simpler install) ───────────────────────────
+    # tree-sitter-languages only works with tree-sitter < 0.22.
+    # parser.py will use the Parser() + set_language() API.
+    "tree-sitter>=0.21,<0.22",
+    "tree-sitter-languages>=1.10.2",
+
+    # ── Option B: modern per-language packages ──────────────────────────────
+    # Uncomment these and comment out Option A to use tree-sitter >= 0.22.
+    # parser.py auto-detects which API to use.
+    # "tree-sitter>=0.22",
+    # "tree-sitter-python>=0.23",
+]

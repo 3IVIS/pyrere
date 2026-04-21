@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: coddingtoddly
+Version: 0.1.0
+Requires-Dist: tree-sitter
+Requires-Dist: tree-sitter-languages
