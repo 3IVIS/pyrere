@@ -268,7 +268,7 @@ def extract_symbols(
     # Each entry: (node, scope_id, pending_dec_names)
     # pending_dec_names — decorator names collected from an enclosing
     # decorated_definition, to be attached once the inner def/class is emitted.
-    stack = [(tree.root_node, file_id, [])]
+    stack: list[tuple] = [(tree.root_node, file_id, [])]
 
     while stack:
         node, scope_id, pending_decs = stack.pop()
@@ -625,26 +625,47 @@ def extract_symbols(
         if ntype == "import_from_statement":
             level = 0
             mod_str = ""
-            mod_field = node.child_by_field_name("module_name")
-            if mod_field is not None:
-                if mod_field.type == "relative_import":
-                    for child in mod_field.children:
-                        if child.type == "import_prefix":
-                            level = len(_cached_text(code_bytes, child, text_cache))
-                        elif child.type == "dotted_name":
-                            mod_str = _cached_text(code_bytes, child, text_cache)
-                else:
-                    mod_str = _cached_text(code_bytes, mod_field, text_cache)
             imported_names: list[str] = []
-            for name_node in node.children_by_field_name("name"):
-                if name_node.type == "wildcard_import":
-                    imported_names.append("*")
-                elif name_node.type == "dotted_name":
-                    imported_names.append(_cached_text(code_bytes, name_node, text_cache))
-                elif name_node.type == "aliased_import":
-                    n = name_node.child_by_field_name("name")
-                    if n:
-                        imported_names.append(_cached_text(code_bytes, n, text_cache))
+
+            # Find the index of the "import" keyword to split the statement
+            # into the module half (left) and the names half (right).
+            # This is stable across tree-sitter-python versions, unlike field names.
+            import_kw_idx = next(
+                (i for i, c in enumerate(node.children) if c.type == "import"),
+                None,
+            )
+
+            for i, child in enumerate(node.children):
+                ctype = child.type
+
+                if ctype in ("from", "import", ",", "(", ")"):
+                    continue
+
+                if import_kw_idx is not None and i < import_kw_idx:
+                    # ── module / level half ───────────────────────────────────
+                    if ctype == "relative_import":
+                        # Older tree-sitter-python wraps dots + name here
+                        for rc in child.children:
+                            if rc.type == "import_prefix":
+                                level = len(_cached_text(code_bytes, rc, text_cache))
+                            elif rc.type == "dotted_name":
+                                mod_str = _cached_text(code_bytes, rc, text_cache)
+                    elif ctype == "dotted_name":
+                        mod_str = _cached_text(code_bytes, child, text_cache)
+                    elif ctype == "import_prefix":
+                        # Newer versions may expose dots directly without wrapper
+                        level = len(_cached_text(code_bytes, child, text_cache))
+                else:
+                    # ── names half ────────────────────────────────────────────
+                    if ctype == "wildcard_import":
+                        imported_names.append("*")
+                    elif ctype == "dotted_name":
+                        imported_names.append(_cached_text(code_bytes, child, text_cache))
+                    elif ctype == "aliased_import":
+                        n = child.child_by_field_name("name")
+                        if n:
+                            imported_names.append(_cached_text(code_bytes, n, text_cache))
+
             import_refs.append(ImportRef(level=level, module=mod_str, names=imported_names))
             continue
 

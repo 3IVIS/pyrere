@@ -95,7 +95,7 @@ def run_grimp(repo_root: str, graph: CodeGraph) -> int:
     Returns the number of *new* edges added.
     """
     try:
-        import grimp  # type: ignore
+        import grimp  
     except ImportError:
         print("[enrichment] grimp not installed — skipping (pip install grimp)")
         return 0
