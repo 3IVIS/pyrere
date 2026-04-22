@@ -1,8 +1,3 @@
-[build-system]
-requires      = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # PROJECT METADATA
 # ══════════════════════════════════════════════════════════════════════════════
@@ -50,6 +45,9 @@ Homepage      = "https://github.com/3ivis/pyrere"
 Documentation = "https://github.com/3ivis/pyrere#readme"
 "Bug Tracker" = "https://github.com/3ivis/pyrere/issues"
 
+[build-system]
+requires      = ["setuptools>=68,<68.3", "wheel"]
+build-backend = "setuptools.build_meta"
 
 # ── Optional dependency groups ────────────────────────────────────────────────
 # Install with:
