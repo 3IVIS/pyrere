@@ -1,5 +1,5 @@
 from typing import List, NamedTuple
-from src.graph.models import Node, Edge
+from pyrere.graph.models import Node, Edge
 import hashlib
 import re
 

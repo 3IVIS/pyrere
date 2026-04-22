@@ -5,9 +5,6 @@
 "use strict";
 
 // ── design tokens ─────────────────────────────────────────────────────────────
-//
-// Light-background nodes: pastel fill + strong-coloured border + dark text.
-// This reads better at small label sizes and keeps the canvas feeling airy.
 
 const NODE_STYLES = {
   module: {
@@ -47,13 +44,13 @@ const NODE_STYLES = {
 const NODE_STYLES_EXTRA = {
   variable: {
     color: {
-      background: '#F0F9FF',
-      border: '#0284C7',
-      highlight: { background: '#E0F2FE', border: '#0369A1' },
-      hover:     { background: '#E0F2FE', border: '#0369A1' },
+      background: "#F0F9FF",
+      border:     "#0284C7",
+      highlight:  { background: "#E0F2FE", border: "#0369A1" },
+      hover:      { background: "#E0F2FE", border: "#0369A1" },
     },
-    shape: 'triangleDown',
-    font:  { color: '#0C4A6E', size: 11, face: 'ui-sans-serif, system-ui, sans-serif' },
+    shape: "triangleDown",
+    font:  { color: "#0C4A6E", size: 11, face: "ui-sans-serif, system-ui, sans-serif" },
   },
 };
 
@@ -68,21 +65,28 @@ const NODE_STYLE_DEFAULT = {
   font:  { color: "#334155", size: 11 },
 };
 
-// Semantic edge palette:
-//  slate  = structural containment (quiet, doesn't compete)
-//  blue   = import relationships
-//  orange = execution / calls
-//  violet = inheritance hierarchy
-//  pink   = decoration / modification
-//  cyan   = type-system usage
+// Issue severity → border colour override
+const SEVERITY_BORDER = {
+  error:   "#DC2626",   // red-600
+  warning: "#D97706",   // amber-600
+  info:    "#0891B2",   // cyan-600
+};
+
+// Tool → pill colour (background, text)
+const TOOL_PILL = {
+  ruff:    { bg: "#EFF6FF", fg: "#1D4ED8", label: "ruff"    },
+  vulture: { bg: "#FFF7ED", fg: "#C2410C", label: "vulture" },
+  bandit:  { bg: "#FEF2F2", fg: "#991B1B", label: "bandit"  },
+};
+
 const EDGE_STYLES = {
-  contains:       ["#CBD5E1", false],  // slate-300   — thin, structural
-  imports:        ["#2563EB", false],  // blue-600    — file dependency
-  imports_symbol: ["#93C5FD", true ],  // blue-300    — symbol import, dashed
-  calls:          ["#EA580C", false],  // orange-600  — function call
-  inherits:       ["#7C3AED", false],  // violet-600  — class hierarchy
-  decorates:      ["#DB2777", false],  // pink-600    — decorator
-  uses_type:      ["#0891B2", true ],  // cyan-600    — type annotation, dashed
+  contains:       ["#CBD5E1", false],
+  imports:        ["#2563EB", false],
+  imports_symbol: ["#93C5FD", true ],
+  calls:          ["#EA580C", false],
+  inherits:       ["#7C3AED", false],
+  decorates:      ["#DB2777", false],
+  uses_type:      ["#0891B2", true ],
 };
 const EDGE_COLOUR_DEFAULT = "#94A3B8";
 
@@ -122,6 +126,28 @@ function normalizePath(p) {
   return p ? p.replace(/\\/g, "/") : "";
 }
 
+// ── issue helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Return the worst severity present in an issues array, or null if empty.
+ * Order: error > warning > info
+ */
+function worstSeverity(issues) {
+  if (!issues || issues.length === 0) return null;
+  if (issues.some((i) => i.severity === "error"))   return "error";
+  if (issues.some((i) => i.severity === "warning")) return "warning";
+  return "info";
+}
+
+/**
+ * Count issues by severity. Returns { error, warning, info }.
+ */
+function countBySeverity(issues) {
+  const out = { error: 0, warning: 0, info: 0 };
+  for (const i of (issues || [])) out[i.severity] = (out[i.severity] || 0) + 1;
+  return out;
+}
+
 // ── file tree ─────────────────────────────────────────────────────────────────
 
 function buildFileTree(files) {
@@ -139,15 +165,9 @@ function buildFileTree(files) {
   return root;
 }
 
-/**
- * Renders a tree level into `container`.
- * Folders always appear before files; each group is sorted alphabetically.
- * Top-level folders (depth 0) are expanded by default.
- */
 function renderTree(node, container, path = "", depth = 0) {
   const ul = document.createElement("ul");
 
-  // Separate folders from files, sort each group alpha, then concat
   const all     = Object.entries(node);
   const folders = all.filter(([, v]) => !v.__isFile || Object.keys(v.__children).length > 0)
                      .sort(([a], [b]) => a.localeCompare(b));
@@ -160,7 +180,6 @@ function renderTree(node, container, path = "", depth = 0) {
     const isFolder = !item.__isFile || Object.keys(item.__children).length > 0;
 
     if (isFolder) {
-      // ── folder ──────────────────────────────────────────────────────────────
       const header = document.createElement("div");
       header.className = "tree-folder";
 
@@ -194,7 +213,6 @@ function renderTree(node, container, path = "", depth = 0) {
       li.append(header, childWrap);
 
     } else {
-      // ── file ─────────────────────────────────────────────────────────────────
       const row = document.createElement("label");
       row.className = "tree-file";
 
@@ -240,7 +258,6 @@ function makeNodeSwatch(type) {
   el.className = "swatch";
   el.style.background   = s.color.background;
   el.style.borderColor  = s.color.border;
-  // Mirror the vis.js shape loosely
   el.style.borderRadius = (s.shape === "ellipse") ? "50%"
                         : (s.shape === "diamond") ? "2px"
                         : "3px";
@@ -299,6 +316,75 @@ function buildTypeFilters() {
   }
 }
 
+// ── issues sidebar panel ──────────────────────────────────────────────────────
+
+/**
+ * Rebuild the "Issues" panel in the sidebar with aggregated counts across
+ * all currently visible nodes.
+ */
+function buildIssuesPanel(visibleNodes) {
+  const panel = document.getElementById("issues-panel");
+  if (!panel) return;
+  panel.innerHTML = "";
+
+  // Collect all issues from visible nodes
+  const byTool    = {};
+  const bySev     = { error: 0, warning: 0, info: 0 };
+  let   total     = 0;
+
+  for (const n of visibleNodes) {
+    for (const issue of (n.metadata?.issues ?? [])) {
+      byTool[issue.tool] = (byTool[issue.tool] || 0) + 1;
+      bySev[issue.severity] = (bySev[issue.severity] || 0) + 1;
+      total++;
+    }
+  }
+
+  if (total === 0) {
+    const none = document.createElement("div");
+    none.style.cssText = "padding:6px 14px;font-size:12px;color:#94a3b8";
+    none.textContent = "No issues in visible nodes";
+    panel.appendChild(none);
+    return;
+  }
+
+  // Severity summary row
+  const sevRow = document.createElement("div");
+  sevRow.style.cssText = "display:flex;gap:6px;padding:6px 14px 4px;flex-wrap:wrap";
+
+  const sevDefs = [
+    { key: "error",   label: "errors",   bg: "#FEF2F2", fg: "#991B1B" },
+    { key: "warning", label: "warnings", bg: "#FFFBEB", fg: "#92400E" },
+    { key: "info",    label: "info",     bg: "#EFF6FF", fg: "#1E40AF" },
+  ];
+  for (const { key, label, bg, fg } of sevDefs) {
+    if (!bySev[key]) continue;
+    const pill = document.createElement("span");
+    pill.style.cssText = `background:${bg};color:${fg};font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px`;
+    pill.textContent = `${bySev[key]} ${label}`;
+    sevRow.appendChild(pill);
+  }
+  panel.appendChild(sevRow);
+
+  // Per-tool breakdown
+  for (const [tool, count] of Object.entries(byTool).sort()) {
+    const p = TOOL_PILL[tool] ?? { bg: "#F1F5F9", fg: "#334155", label: tool };
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:7px;padding:3px 14px";
+
+    const pill = document.createElement("span");
+    pill.style.cssText = `background:${p.bg};color:${p.fg};font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;min-width:46px;text-align:center`;
+    pill.textContent = p.label;
+
+    const cnt = document.createElement("span");
+    cnt.style.cssText = "font-size:12px;color:#374151";
+    cnt.textContent = `${count} issue${count !== 1 ? "s" : ""}`;
+
+    row.append(pill, cnt);
+    panel.appendChild(row);
+  }
+}
+
 // ── graph rendering ───────────────────────────────────────────────────────────
 
 function edgeOptions(type) {
@@ -312,15 +398,34 @@ function edgeOptions(type) {
   };
 }
 
-function nodeOptions(type, isImported = false) {
-  const base = { ...(NODE_STYLES[type] ?? NODE_STYLES_EXTRA[type] ?? NODE_STYLE_DEFAULT) };
+function nodeOptions(type, isImported = false, issues = []) {
+  // Start from the base style for this node type
+  const base = {
+    ...(NODE_STYLES[type] ?? NODE_STYLES_EXTRA[type] ?? NODE_STYLE_DEFAULT),
+  };
+
+  // Apply severity-based border colour override (errors trump warnings)
+  const worst = worstSeverity(issues);
+  if (worst) {
+    const borderCol = SEVERITY_BORDER[worst];
+    base.color = {
+      ...base.color,
+      border:    borderCol,
+      highlight: { ...base.color.highlight, border: borderCol },
+      hover:     { ...base.color.hover,     border: borderCol },
+    };
+    // Slightly thicker border so it reads at small sizes
+    base.borderWidth = 3;
+  }
+
   if (!isImported) return base;
+
   return {
     ...base,
     color: {
       ...base.color,
       background: base.color.background,
-      border:     base.color.border + "88",   // semi-transparent border
+      border:     base.color.border + "88",
     },
     opacity:      0.55,
     borderDashes: [5, 4],
@@ -328,8 +433,126 @@ function nodeOptions(type, isImported = false) {
   };
 }
 
+/**
+ * Build the rich HTML tooltip element for a node.
+ */
+function buildTooltip(n, isImported) {
+  const m      = n.metadata ?? {};
+  const issues = m.issues ?? [];
+  const el     = document.createElement("div");
+  el.style.cssText =
+    "font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;" +
+    "line-height:1.5;max-width:340px;padding:2px 0";
+
+  // ── name + type ──────────────────────────────────────────────────────────────
+  const heading = document.createElement("div");
+  heading.style.cssText = "font-weight:700;font-size:13px;margin-bottom:2px";
+  heading.textContent = n.name;
+  el.appendChild(heading);
+
+  const sub = document.createElement("div");
+  sub.style.cssText = "color:#64748b;font-size:11px";
+  sub.textContent = `${n.type} · ${n.file ?? ""}`;
+  el.appendChild(sub);
+
+  // ── metadata badges ──────────────────────────────────────────────────────────
+  const badges = [];
+  if (m.is_async)       badges.push("async");
+  if (m.is_generator)   badges.push("generator");
+  if (m.is_static)      badges.push("static");
+  if (m.is_classmethod) badges.push("classmethod");
+  if (m.is_property)    badges.push("property");
+  if (m.is_lambda)      badges.push("lambda");
+  if (m.is_dataclass)   badges.push("dataclass");
+  if (m.is_abstract)    badges.push("abstract");
+  if (m.is_exception)   badges.push("exception");
+  if (isImported)       badges.push("imported");
+  if (m.visibility)     badges.push(m.visibility);
+
+  if (badges.length) {
+    const bd = document.createElement("div");
+    bd.style.cssText = "color:#94a3b8;font-size:10px;margin-top:2px";
+    bd.textContent = badges.join(" · ");
+    el.appendChild(bd);
+  }
+
+  if (m.return_type) {
+    const rt = document.createElement("div");
+    rt.style.cssText = "color:#94a3b8;font-size:10px";
+    rt.textContent = `→ ${m.return_type}`;
+    el.appendChild(rt);
+  }
+
+  if (m.complexity != null && m.complexity > 1) {
+    const cx = document.createElement("div");
+    cx.style.cssText = "color:#94a3b8;font-size:10px";
+    cx.textContent = `complexity: ${m.complexity}`;
+    el.appendChild(cx);
+  }
+
+  if (m.docstring) {
+    const ds = document.createElement("div");
+    ds.style.cssText =
+      "color:#64748b;font-size:11px;font-style:italic;margin-top:3px;" +
+      "border-top:1px solid #f1f5f9;padding-top:3px";
+    const preview = m.docstring.length > 120 ? m.docstring.slice(0, 120) + "…" : m.docstring;
+    ds.textContent = preview;
+    el.appendChild(ds);
+  }
+
+  // ── issues section ───────────────────────────────────────────────────────────
+  if (issues.length > 0) {
+    const divider = document.createElement("div");
+    divider.style.cssText =
+      "margin-top:6px;padding-top:5px;border-top:1px solid #fee2e2";
+    el.appendChild(divider);
+
+    const issueHdr = document.createElement("div");
+    issueHdr.style.cssText = "font-weight:700;font-size:10px;color:#dc2626;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em";
+    issueHdr.textContent = `${issues.length} issue${issues.length !== 1 ? "s" : ""}`;
+    divider.appendChild(issueHdr);
+
+    // Show up to 6 issues; summarise the rest
+    const shown = issues.slice(0, 6);
+    for (const issue of shown) {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:5px;align-items:baseline;margin-bottom:2px";
+
+      const p = TOOL_PILL[issue.tool] ?? { bg: "#F1F5F9", fg: "#334155" };
+      const pill = document.createElement("span");
+      pill.style.cssText =
+        `background:${p.bg};color:${p.fg};font-size:9px;font-weight:700;` +
+        "padding:0 4px;border-radius:3px;flex-shrink:0";
+      pill.textContent = issue.tool;
+
+      const codeSev = document.createElement("span");
+      const sevColour = SEVERITY_BORDER[issue.severity] ?? "#64748b";
+      codeSev.style.cssText = `color:${sevColour};font-size:10px;font-weight:600;flex-shrink:0`;
+      codeSev.textContent = issue.code;
+
+      const msg = document.createElement("span");
+      msg.style.cssText = "color:#374151;font-size:10px;white-space:normal";
+      const short = issue.message.length > 70
+        ? issue.message.slice(0, 70) + "…"
+        : issue.message;
+      msg.textContent = `${short}  (L${issue.line})`;
+
+      row.append(pill, codeSev, msg);
+      divider.appendChild(row);
+    }
+
+    if (issues.length > 6) {
+      const more = document.createElement("div");
+      more.style.cssText = "color:#94a3b8;font-size:10px;margin-top:2px";
+      more.textContent = `+ ${issues.length - 6} more …`;
+      divider.appendChild(more);
+    }
+  }
+
+  return el;
+}
+
 function renderGraph() {
-  // ── lookup tables ──────────────────────────────────────────────────────────
   const nodeById       = new Map(fullData.nodes.map((n) => [n.id, n]));
   const moduleIdByFile = new Map();
   const fileByModuleId = new Map();
@@ -340,7 +563,7 @@ function renderGraph() {
     }
   }
 
-  // Adjacency list: moduleId → [targetModuleId]
+  // One-hop import expansion
   const importAdj = new Map();
   for (const e of fullData.edges) {
     if (e.type !== "imports") continue;
@@ -348,7 +571,6 @@ function renderGraph() {
     importAdj.get(e.source).push(e.target);
   }
 
-  // ── one-hop import expansion ───────────────────────────────────────────────
   const importedFiles = new Set();
   for (const selFile of selectedFiles) {
     const modId = moduleIdByFile.get(selFile);
@@ -361,13 +583,13 @@ function renderGraph() {
 
   const allVisibleFiles = new Set([...selectedFiles, ...importedFiles]);
 
-  // ── node set ───────────────────────────────────────────────────────────────
+  // Node set
   const nodes = fullData.nodes.filter(
     (n) => allVisibleFiles.has(n.file) && selectedNodeTypes.has(n.type)
   );
   const nodeIds = new Set(nodes.map((n) => n.id));
 
-  // Clicked node: pull in all directly connected neighbours
+  // Expand neighbours of selected node
   if (selectedNodeId && nodeIds.has(selectedNodeId)) {
     for (const e of fullData.edges) {
       if (!selectedEdgeTypes.has(e.type)) continue;
@@ -382,83 +604,35 @@ function renderGraph() {
     }
   }
 
-  // ── edge set ───────────────────────────────────────────────────────────────
+  // Edge set
   const edges = fullData.edges.filter(
     (e) => nodeIds.has(e.source) && nodeIds.has(e.target) && selectedEdgeTypes.has(e.type)
   );
 
-  // ── status bar ─────────────────────────────────────────────────────────────
+  // Status bar
   const statusEl = document.getElementById("status");
   if (statusEl) statusEl.textContent = `${nodes.length} nodes · ${edges.length} edges`;
 
-  // ── vis datasets ───────────────────────────────────────────────────────────
+  // Refresh issues panel
+  buildIssuesPanel(nodes);
+
+  // vis datasets
   const visNodes = new vis.DataSet(
     nodes.map((n) => {
       const isImported = importedFiles.has(n.file) && !selectedFiles.has(n.file);
+      const issues     = n.metadata?.issues ?? [];
+      const counts     = countBySeverity(issues);
+
+      // Build label: name + optional issue badge
+      let label = n.name;
+      if (counts.error)   label += ` ✖${counts.error}`;
+      if (counts.warning) label += ` ⚠${counts.warning}`;
+
       return {
         id:    n.id,
-        label: n.name,
-        title: (() => {
-          // vis.js renders a DOM element as HTML; a plain string is plain text.
-          const m = n.metadata ?? {};
-          const el = document.createElement("div");
-          el.style.cssText = "font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;line-height:1.5;max-width:320px;padding:2px 0";
-
-          const heading = document.createElement("div");
-          heading.style.cssText = "font-weight:700;font-size:13px;margin-bottom:2px";
-          heading.textContent = n.name;
-          el.appendChild(heading);
-
-          const sub = document.createElement("div");
-          sub.style.cssText = "color:#64748b;font-size:11px";
-          sub.textContent = `${n.type} · ${n.file ?? ""}`;
-          el.appendChild(sub);
-
-          const badges = [];
-          if (m.is_async)       badges.push("async");
-          if (m.is_generator)   badges.push("generator");
-          if (m.is_static)      badges.push("static");
-          if (m.is_classmethod) badges.push("classmethod");
-          if (m.is_property)    badges.push("property");
-          if (m.is_lambda)      badges.push("lambda");
-          if (m.is_dataclass)   badges.push("dataclass");
-          if (m.is_abstract)    badges.push("abstract");
-          if (m.is_exception)   badges.push("exception");
-          if (isImported)       badges.push("imported");
-          if (m.visibility)     badges.push(m.visibility);
-
-          if (badges.length) {
-            const bd = document.createElement("div");
-            bd.style.cssText = "color:#94a3b8;font-size:10px;margin-top:2px";
-            bd.textContent = badges.join(" · ");
-            el.appendChild(bd);
-          }
-
-          if (m.return_type) {
-            const rt = document.createElement("div");
-            rt.style.cssText = "color:#94a3b8;font-size:10px";
-            rt.textContent = `→ ${m.return_type}`;
-            el.appendChild(rt);
-          }
-
-          if (m.complexity != null && m.complexity > 1) {
-            const cx = document.createElement("div");
-            cx.style.cssText = "color:#94a3b8;font-size:10px";
-            cx.textContent = `complexity: ${m.complexity}`;
-            el.appendChild(cx);
-          }
-
-          if (m.docstring) {
-            const ds = document.createElement("div");
-            ds.style.cssText = "color:#64748b;font-size:11px;font-style:italic;margin-top:3px;border-top:1px solid #f1f5f9;padding-top:3px";
-            const preview = m.docstring.length > 120 ? m.docstring.slice(0, 120) + "…" : m.docstring;
-            ds.textContent = preview;
-            el.appendChild(ds);
-          }
-
-          return el;
-        })(),
-        ...nodeOptions(n.type, isImported),
+        label,
+        title: buildTooltip(n, isImported),
+        ...nodeOptions(n.type, isImported, issues),
       };
     })
   );

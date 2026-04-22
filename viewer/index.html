@@ -80,6 +80,11 @@ body {
   padding: 14px 14px 5px;
 }
 
+/* issues section title gets a red tint when there are findings */
+.section-title.has-issues {
+  color: #dc2626;
+}
+
 /* ── resizer ─────────────────────────────────────────────────────────────── */
 #resizer {
   width: 4px;
@@ -160,7 +165,6 @@ body {
   accent-color: #2563EB;
   flex-shrink: 0;
 }
-/* small coloured dot indicating it's a .py file */
 .file-dot {
   width: 6px;
   height: 6px;
@@ -200,7 +204,7 @@ body {
   font-size: 12px;
 }
 
-/* node-type swatch: a small shape mirroring vis.js */
+/* node-type swatch */
 .swatch {
   display: inline-block;
   width: 13px;
@@ -209,13 +213,18 @@ body {
   flex-shrink: 0;
 }
 
-/* edge-type swatch: a short coloured line */
+/* edge-type swatch */
 .swatch-line {
   display: inline-block;
   width: 24px;
   height: 3px;
   border-radius: 2px;
   flex-shrink: 0;
+}
+
+/* ── issues panel ────────────────────────────────────────────────────────── */
+#issues-panel {
+  padding-bottom: 4px;
 }
 
 /* vis.js tooltip container */
@@ -228,7 +237,7 @@ body {
   color: #1e293b !important;
   font-family: ui-sans-serif, system-ui, sans-serif !important;
   font-size: 12px !important;
-  max-width: 340px !important;
+  max-width: 360px !important;
   pointer-events: none;
 }
 </style>
@@ -246,6 +255,9 @@ body {
 
       <div class="section-title">Files</div>
       <div id="file-list"></div>
+
+      <div class="section-title">Issues</div>
+      <div id="issues-panel"></div>
 
       <div class="section-title">Node types</div>
       <div id="node-type-filters"></div>

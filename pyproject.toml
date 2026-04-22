@@ -1,16 +1,170 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PROJECT METADATA
+# ══════════════════════════════════════════════════════════════════════════════
+
 [project]
-name = "coddingtoddly"
-version = "0.1.0"
+name        = "coddingtoddly"
+version     = "0.1.0"
+description = "Code Knowledge Graph: static analysis + LLM-assisted refactoring pipeline"
+readme      = "README.md"
+license     = { text = "MIT" }
+
+# str.removesuffix → 3.9+; `X | Y` union syntax in annotations → 3.10+
+requires-python = ">=3.10"
+
+# ── Core runtime dependencies ─────────────────────────────────────────────────
+# Only the parsing layer is required to run the basic graph build.
+# All analysis and enrichment tools are opt-in via extras (see below).
 dependencies = [
-    # ── Option A: legacy bundle (simpler install) ───────────────────────────
-    # tree-sitter-languages only works with tree-sitter < 0.22.
-    # parser.py will use the Parser() + set_language() API.
+    # ── Option A: legacy bundle (tree-sitter < 0.22, simpler install) ────────
+    # tree-sitter-languages bundles pre-compiled grammars for ~100 languages.
+    # parser.py detects the API and calls set_language() accordingly.
     "tree-sitter>=0.21,<0.22",
     "tree-sitter-languages>=1.10.2",
 
-    # ── Option B: modern per-language packages ──────────────────────────────
-    # Uncomment these and comment out Option A to use tree-sitter >= 0.22.
-    # parser.py auto-detects which API to use.
+    # ── Option B: modern per-language packages (tree-sitter >= 0.22) ─────────
+    # Uncomment these two lines and comment out the two lines above.
+    # parser.py will use the new Language(tspython.language()) constructor.
     # "tree-sitter>=0.22",
     # "tree-sitter-python>=0.23",
 ]
+
+
+# ── Optional dependency groups ────────────────────────────────────────────────
+# Install with:
+#   pip install -e ".[flow]"
+#   pip install -e ".[enrichment]"
+#   pip install -e ".[all]"
+
+[project.optional-dependencies]
+
+# Step 8: static linters and security scanners
+flow = [
+    "ruff>=0.4.0",        # fast linter; --output-format=json stable since 0.4
+    "vulture>=2.11",      # dead-code detection
+    "bandit>=1.7.9",      # security issue detection
+]
+
+# Step 4: semantic enrichment tools
+enrichment = [
+    "pyright>=1.1.0",     # cross-file type checking (needs Node.js on PATH)
+    "grimp>=3.4",         # accurate module import graph
+    "pycg>=0.0.7",        # points-to call graph analysis
+]
+
+# Install everything at once
+all = [
+    "coddingtoddly[flow,enrichment]",
+]
+
+# Developer tooling (tests, type checking, formatting)
+dev = [
+    "coddingtoddly[all]",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "mypy>=1.10",
+]
+
+
+# ── Entry points ──────────────────────────────────────────────────────────────
+# Uncomment once scripts/run.py exposes a main() function.
+# [project.scripts]
+# coddingtoddly = "scripts.run:main"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PACKAGE DISCOVERY
+# ══════════════════════════════════════════════════════════════════════════════
+
+[tool.setuptools.packages.find]
+# Discover src and all its sub-packages (aggregator, enrichment, flow, …)
+# as well as the scripts package from the repo root.
+where   = ["."]
+include = ["src*", "scripts*"]
+exclude = ["*.egg-info", "viewer*", "tests*"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TOOL CONFIGURATIONS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── ruff ──────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py310"
+line-length    = 100
+# Exclude generated / third-party / non-source directories
+exclude = [
+    ".git", ".hg", ".tox", ".venv", "venv", "env",
+    "build", "dist", "__pycache__",
+    "*.egg-info",
+    "viewer",          # JS / HTML — not linted by ruff
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (undefined names, unused imports, …)
+    "I",   # isort (import ordering)
+    "UP",  # pyupgrade (modernise Python syntax)
+    "B",   # flake8-bugbear (likely bugs and design issues)
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "E501",  # line-too-long — handled by formatter
+    "B008",  # do-not-perform-function-call-in-default-argument
+    "SIM108", # ternary — sometimes less readable
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.format]
+quote-style    = "double"
+indent-style   = "space"
+line-ending    = "auto"
+
+
+# ── bandit ────────────────────────────────────────────────────────────────────
+[tool.bandit]
+# Directories bandit should not scan
+exclude_dirs = ["tests", "viewer", ".venv", "venv", "build", "dist"]
+# Skipped checks (per-repo decisions):
+#   B101 assert_used       — asserts are acceptable in this codebase
+#   B603 subprocess_without_shell — we always use shell=False intentionally
+#   B607 start_process_with_partial_path — we control all subprocess calls
+skips = ["B101", "B603", "B607"]
+
+
+# ── vulture ───────────────────────────────────────────────────────────────────
+[tool.vulture]
+min_confidence = 70
+paths          = ["src", "scripts"]
+exclude        = ["viewer/", ".venv/", "venv/", "build/", "dist/"]
+
+
+# ── mypy ──────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version         = "3.10"
+strict                 = false
+ignore_missing_imports = true   # third-party stubs may be absent
+warn_unused_ignores    = true
+warn_return_any        = false  # too noisy during early development
+exclude                = ["viewer/", "build/", "dist/"]
+
+
+# ── pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+addopts      = "-ra -q --tb=short"
+python_files = ["test_*.py", "*_test.py"]

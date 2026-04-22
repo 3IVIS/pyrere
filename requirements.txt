@@ -1,0 +1,65 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# coddingtoddly — requirements.txt
+#
+# INSTALL OPTIONS
+# ───────────────
+# Minimum (parsing + graph only):
+#   pip install -r requirements.txt
+#
+# With all analysis tools:
+#   pip install -r requirements.txt -r requirements-tools.txt
+#
+# Or via pyproject.toml extras (recommended):
+#   pip install -e ".[flow]"          ← ruff + vulture + bandit
+#   pip install -e ".[enrichment]"    ← pyright + grimp + pycg
+#   pip install -e ".[all]"           ← everything
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+# ── Step 2-3: Structural Parsing + Symbol Extraction ──────────────────────────
+#
+# OPTION A  (default — simpler install, tree-sitter < 0.22)
+#   tree-sitter-languages bundles pre-compiled grammars for ~100 languages.
+#   parser.py detects the API version automatically.
+tree-sitter>=0.21,<0.22
+tree-sitter-languages>=1.10.2
+
+# OPTION B  (modern — tree-sitter >= 0.22, per-language packages)
+#   Uncomment these two lines and comment out the two lines above.
+#   parser.py will use the new Language(tspython.language()) API.
+# tree-sitter>=0.22
+# tree-sitter-python>=0.23
+
+
+# ── Step 4: Enrichment Layer ───────────────────────────────────────────────────
+#
+# All three tools are optional — the pipeline skips any that are missing.
+#
+# pyright  Cross-file type checking, undefined-name detection, unreachable
+#          code.  Installed via pip as a wrapper around the npm package;
+#          Node.js >= 14 must be available on PATH.
+pyright>=1.1.0
+#
+# grimp    Accurate module-level import graph using the *installed* package
+#          graph rather than text scanning.  Requires the repo to be
+#          importable (e.g. `pip install -e .`).
+grimp>=3.4
+#
+# pycg     Points-to call graph analysis — disambiguates calls when multiple
+#          functions share the same name.
+pycg>=0.0.7
+
+
+# ── Step 8: Flow + Issue Analysis ─────────────────────────────────────────────
+#
+# ruff     Fast linter (replaces flake8/pyflakes/isort/pyupgrade).
+#          Must be >= 0.4.0 for stable --output-format=json support.
+ruff>=0.4.0
+#
+# vulture  Dead-code detector.  Flags unused functions, classes, variables,
+#          and imports via heuristic analysis.
+vulture>=2.11
+#
+# bandit   Security-focused linter.  Finds common issues like hardcoded
+#          passwords, unsafe subprocess calls, and SQL injection vectors.
+bandit>=1.7.9

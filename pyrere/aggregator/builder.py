@@ -1,10 +1,10 @@
 import os
 from typing import List
 
-from src.graph.models import CodeGraph, Node, Edge
-from src.parsing.parser import get_parser
-from src.ingestion.loader import load_python_files
-from src.symbols.extractor import extract_symbols, make_id, ImportRef
+from pyrere.graph.models import CodeGraph, Node, Edge
+from pyrere.parsing.parser import get_parser
+from pyrere.ingestion.loader import load_python_files
+from pyrere.symbols.extractor import extract_symbols, make_id, ImportRef
 
 
 # ─────────────────────────────────────────────────────────────────────────────
