@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# coddingtoddly — requirements.txt
+# pyrere — requirements.txt
 #
 # INSTALL OPTIONS
 # ───────────────

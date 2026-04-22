@@ -1,5 +1,5 @@
 """
-src/flow/analyzer.py
+pyrere/flow/analyzer.py
 ─────────────────────
 Step 8: Flow + Issue Analysis
 
@@ -30,10 +30,10 @@ import sys
 from pyrere.graph.models import CodeGraph
 from pyrere.utils.spatial import build_spatial_index, locate, stamp_issue
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # RUFF
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _ruff_severity(code: str) -> str:
     if code.startswith(("E", "F")):
@@ -51,7 +51,10 @@ def run_ruff(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
     try:
         result = subprocess.run(
             [
-                sys.executable, "-m", "ruff", "check",
+                sys.executable,
+                "-m",
+                "ruff",
+                "check",
                 "--output-format=json",
                 "--no-cache",
                 repo_root,
@@ -76,17 +79,21 @@ def run_ruff(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
     count = 0
     for f in findings:
         abs_path = os.path.abspath(f.get("filename", ""))
-        line     = (f.get("location") or {}).get("row", 0)
-        code     = f.get("code") or "?"
-        msg      = f.get("message", "")
-        owner    = locate(graph, spatial, abs_path, line)
-        stamp_issue(graph, owner, {
-            "tool":     "ruff",
-            "code":     code,
-            "message":  msg,
-            "line":     line,
-            "severity": _ruff_severity(code),
-        })
+        line = (f.get("location") or {}).get("row", 0)
+        code = f.get("code") or "?"
+        msg = f.get("message", "")
+        owner = locate(graph, spatial, abs_path, line)
+        stamp_issue(
+            graph,
+            owner,
+            {
+                "tool": "ruff",
+                "code": code,
+                "message": msg,
+                "line": line,
+                "severity": _ruff_severity(code),
+            },
+        )
         count += 1
     return count
 
@@ -95,10 +102,8 @@ def run_ruff(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
 # VULTURE
 # ─────────────────────────────────────────────────────────────────────────────
 
-# e.g.  "src/foo.py:42: unused variable 'x' (60% confidence)"
-_VULTURE_RE = re.compile(
-    r"^(.+?):(\d+):\s+(unused\s.+?)\s+\((\d+)%\s+confidence\)\s*$"
-)
+# e.g.  "pyrere/foo.py:42: unused variable 'x' (60% confidence)"
+_VULTURE_RE = re.compile(r"^(.+?):(\d+):\s+(unused\s.+?)\s+\((\d+)%\s+confidence\)\s*$")
 
 
 def run_vulture(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
@@ -109,9 +114,12 @@ def run_vulture(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
     try:
         result = subprocess.run(
             [
-                sys.executable, "-m", "vulture",
+                sys.executable,
+                "-m",
+                "vulture",
                 repo_root,
-                "--min-confidence", "60",
+                "--min-confidence",
+                "60",
             ],
             capture_output=True,
             text=True,
@@ -127,17 +135,21 @@ def run_vulture(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
         if not m:
             continue
         abs_path = os.path.abspath(m.group(1))
-        line     = int(m.group(2))
-        message  = m.group(3)
-        conf     = int(m.group(4))
-        owner    = locate(graph, spatial, abs_path, line)
-        stamp_issue(graph, owner, {
-            "tool":     "vulture",
-            "code":     "unused",
-            "message":  f"{message} ({conf}% confidence)",
-            "line":     line,
-            "severity": "warning",
-        })
+        line = int(m.group(2))
+        message = m.group(3)
+        conf = int(m.group(4))
+        owner = locate(graph, spatial, abs_path, line)
+        stamp_issue(
+            graph,
+            owner,
+            {
+                "tool": "vulture",
+                "code": "unused",
+                "message": f"{message} ({conf}% confidence)",
+                "line": line,
+                "severity": "warning",
+            },
+        )
         count += 1
     return count
 
@@ -145,6 +157,7 @@ def run_vulture(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 # BANDIT
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _bandit_severity(level: str) -> str:
     level = (level or "").upper()
@@ -163,9 +176,13 @@ def run_bandit(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
     try:
         result = subprocess.run(
             [
-                sys.executable, "-m", "bandit",
-                "-r", repo_root,
-                "-f", "json",
+                sys.executable,
+                "-m",
+                "bandit",
+                "-r",
+                repo_root,
+                "-f",
+                "json",
                 "-q",
             ],
             capture_output=True,
@@ -189,18 +206,22 @@ def run_bandit(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
     count = 0
     for finding in data.get("results", []):
         abs_path = os.path.abspath(finding.get("filename", ""))
-        line     = finding.get("line_number", 0)
-        code     = finding.get("test_id", "?")
-        msg      = finding.get("issue_text", "").strip()
-        sev      = finding.get("issue_severity", "LOW")
-        owner    = locate(graph, spatial, abs_path, line)
-        stamp_issue(graph, owner, {
-            "tool":     "bandit",
-            "code":     code,
-            "message":  msg,
-            "line":     line,
-            "severity": _bandit_severity(sev),
-        })
+        line = finding.get("line_number", 0)
+        code = finding.get("test_id", "?")
+        msg = finding.get("issue_text", "").strip()
+        sev = finding.get("issue_severity", "LOW")
+        owner = locate(graph, spatial, abs_path, line)
+        stamp_issue(
+            graph,
+            owner,
+            {
+                "tool": "bandit",
+                "code": code,
+                "message": msg,
+                "line": line,
+                "severity": _bandit_severity(sev),
+            },
+        )
         count += 1
     return count
 
@@ -208,6 +229,7 @@ def run_bandit(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 # PUBLIC ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def annotate_graph(graph: CodeGraph, repo_root: str) -> dict[str, int]:
     """
@@ -219,9 +241,9 @@ def annotate_graph(graph: CodeGraph, repo_root: str) -> dict[str, int]:
     """
     spatial = build_spatial_index(graph)
     summary = {
-        "ruff":    run_ruff(repo_root, graph, spatial),
+        "ruff": run_ruff(repo_root, graph, spatial),
         "vulture": run_vulture(repo_root, graph, spatial),
-        "bandit":  run_bandit(repo_root, graph, spatial),
+        "bandit": run_bandit(repo_root, graph, spatial),
     }
     total = sum(summary.values())
     print(

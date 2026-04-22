@@ -1,5 +1,5 @@
 """
-src/enrichment/__init__.py
+pyrere/enrichment/__init__.py
 ───────────────────────────
 Step 4: Enrichment Layer
 
@@ -23,11 +23,11 @@ Install enrichment tools:
 
 from __future__ import annotations
 
+from pyrere.enrichment.grimp_ import run_grimp
+from pyrere.enrichment.pycg_ import run_pycg
+from pyrere.enrichment.pyright import run_pyright
 from pyrere.graph.models import CodeGraph
 from pyrere.utils.spatial import build_spatial_index
-from pyrere.enrichment.pyright import run_pyright
-from pyrere.enrichment.grimp_  import run_grimp
-from pyrere.enrichment.pycg_   import run_pycg
 
 
 def enrich_graph(graph: CodeGraph, repo_root: str) -> dict[str, int]:
@@ -47,13 +47,13 @@ def enrich_graph(graph: CodeGraph, repo_root: str) -> dict[str, int]:
     spatial = build_spatial_index(graph)
 
     pyright_count = run_pyright(repo_root, graph, spatial)
-    grimp_count   = run_grimp(repo_root, graph)
-    pycg_count    = run_pycg(repo_root, graph)
+    grimp_count = run_grimp(repo_root, graph)
+    pycg_count = run_pycg(repo_root, graph)
 
     summary = {
         "pyright_issues": pyright_count,
-        "grimp_edges":    grimp_count,
-        "pycg_edges":     pycg_count,
+        "grimp_edges": grimp_count,
+        "pycg_edges": pycg_count,
     }
 
     print(

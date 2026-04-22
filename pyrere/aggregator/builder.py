@@ -1,15 +1,14 @@
 import os
-from typing import List
 
-from pyrere.graph.models import CodeGraph, Node, Edge
-from pyrere.parsing.parser import get_parser
+from pyrere.graph.models import CodeGraph, Edge, Node
 from pyrere.ingestion.loader import load_python_files
-from pyrere.symbols.extractor import extract_symbols, make_id, ImportRef
-
+from pyrere.parsing.parser import get_parser
+from pyrere.symbols.extractor import ImportRef, extract_symbols, make_id
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def get_file_id(path: str) -> str:
     return make_id(os.path.abspath(path))
@@ -46,12 +45,13 @@ def _resolve_module_name(name: str, module_index: dict) -> str | None:
 # IMPORT RESOLUTION
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def resolve_import_ref(
     imp: ImportRef,
     caller_file: str,
     repo_root: str,
     module_index: dict,
-) -> List[str]:
+) -> list[str]:
     """
     Resolve an ImportRef to a list of absolute file paths that should receive
     an `imports` edge from caller_file.
@@ -86,15 +86,9 @@ def resolve_import_ref(
         # Determine whether the caller is itself a package __init__.py.
         # For __init__.py: `from .` means THIS package, so level-1 is free.
         # For regular files: `from .` means the current package (strip the filename).
-        is_init = (
-            caller_module.endswith(".__init__")
-            or caller_module == "__init__"
-        )
+        is_init = caller_module.endswith(".__init__") or caller_module == "__init__"
         if is_init:
-            caller_module = (
-                caller_module.removesuffix(".__init__")
-                              .removesuffix("__init__")
-            )
+            caller_module = caller_module.removesuffix(".__init__").removesuffix("__init__")
             # __init__.py already represents the package, so each dot strips
             # one *fewer* component compared to a regular file.
             adjusted_level = imp.level - 1
@@ -103,12 +97,12 @@ def resolve_import_ref(
 
         parts = caller_module.split(".") if caller_module else []
         if adjusted_level > len(parts):
-            return []   # can't go above the repo root
-        base_parts = parts[: -adjusted_level] if adjusted_level > 0 else parts
+            return []  # can't go above the repo root
+        base_parts = parts[:-adjusted_level] if adjusted_level > 0 else parts
 
         if imp.module:
             # from .utils import bar  OR  from ..graph.models import Foo
-            target = ".".join(base_parts + imp.module.split("."))
+            target = ".".join([*base_parts, *imp.module.split(".")])
             path = _resolve_module_name(target, module_index)
             if path:
                 results.add(path)
@@ -130,7 +124,7 @@ def resolve_import_ref(
                         results.add(path)
                 else:
                     # Try name as a sub-module of the base package
-                    sub = ".".join(base_parts + [name])
+                    sub = ".".join([*base_parts, name])
                     path = _resolve_module_name(sub, module_index)
                     if path:
                         results.add(path)
@@ -147,6 +141,7 @@ def resolve_import_ref(
 # ─────────────────────────────────────────────────────────────────────────────
 # GRAPH BUILDER  —  two-pass so cross-file symbol resolution is possible
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def build_graph(repo_path: str) -> CodeGraph:
     parser = get_parser()
@@ -166,7 +161,7 @@ def build_graph(repo_path: str) -> CodeGraph:
         file_path = os.path.abspath(file_path)
 
         try:
-            with open(file_path, "r", encoding="utf-8") as fh:
+            with open(file_path, encoding="utf-8") as fh:
                 code = fh.read()
         except (OSError, UnicodeDecodeError):
             continue
@@ -174,17 +169,20 @@ def build_graph(repo_path: str) -> CodeGraph:
         tree = parser.parse(bytes(code, "utf-8"))
         file_id = get_file_id(file_path)
 
-        graph.add_node(Node(
-            id=file_id,
-            name=os.path.basename(file_path),
-            type="module",
-            file=file_path,
-            span=(0, 0),
-            sources=["filesystem"],
-        ))
+        graph.add_node(
+            Node(
+                id=file_id,
+                name=os.path.basename(file_path),
+                type="module",
+                file=file_path,
+                span=(0, 0),
+                sources=["filesystem"],
+            )
+        )
 
-        symbols, edges, import_refs, call_refs, inherit_refs, decorator_refs, type_refs = \
+        symbols, edges, import_refs, call_refs, inherit_refs, decorator_refs, type_refs = (
             extract_symbols(tree, code, file_path, file_id)
+        )
 
         for n in symbols:
             graph.add_node(n)
@@ -193,13 +191,20 @@ def build_graph(repo_path: str) -> CodeGraph:
         for e in edges:
             graph.add_edge(e)
 
-        deferred.append((file_id, file_path, import_refs, call_refs,
-                         inherit_refs, decorator_refs, type_refs))
+        deferred.append(
+            (file_id, file_path, import_refs, call_refs, inherit_refs, decorator_refs, type_refs)
+        )
 
     # ── SECOND PASS: resolve all cross-file relationships ────────────────────
-    for file_id, file_path, import_refs, call_refs, \
-            inherit_refs, decorator_refs, type_refs in deferred:
-
+    for (
+        file_id,
+        file_path,
+        import_refs,
+        call_refs,
+        inherit_refs,
+        decorator_refs,
+        type_refs,
+    ) in deferred:
         # ── imports → file-level edges ───────────────────────────────────────
         for imp in import_refs:
             resolved_paths = resolve_import_ref(imp, file_path, repo_root, module_index)
@@ -207,22 +212,26 @@ def build_graph(repo_path: str) -> CodeGraph:
             for resolved in resolved_paths:
                 target_id = get_file_id(resolved)
                 if target_id not in graph.nodes:
-                    graph.add_node(Node(
-                        id=target_id,
-                        name=os.path.basename(resolved),
-                        type="module",
-                        file=resolved,
-                        span=(0, 0),
+                    graph.add_node(
+                        Node(
+                            id=target_id,
+                            name=os.path.basename(resolved),
+                            type="module",
+                            file=resolved,
+                            span=(0, 0),
+                            sources=["resolver"],
+                        )
+                    )
+                graph.add_edge(
+                    Edge(
+                        id=make_id(file_id, target_id, "imports"),
+                        src=file_id,
+                        dst=target_id,
+                        type="imports",
+                        confidence=0.95,
                         sources=["resolver"],
-                    ))
-                graph.add_edge(Edge(
-                    id=make_id(file_id, target_id, "imports"),
-                    src=file_id,
-                    dst=target_id,
-                    type="imports",
-                    confidence=0.95,
-                    sources=["resolver"],
-                ))
+                    )
+                )
 
             # imports_symbol: `from module import ClassName` → direct edge to the
             # class/function node so the viewer can show fine-grained dependencies
@@ -232,66 +241,76 @@ def build_graph(repo_path: str) -> CodeGraph:
                 for sym_id in symbol_index.get(name, []):
                     sym_node = graph.nodes.get(sym_id)
                     if sym_node and sym_node.file in resolved_paths:
-                        graph.add_edge(Edge(
-                            id=make_id(file_id, sym_id, "imports_symbol"),
-                            src=file_id,
-                            dst=sym_id,
-                            type="imports_symbol",
-                            confidence=0.95,
-                            sources=["resolver"],
-                        ))
+                        graph.add_edge(
+                            Edge(
+                                id=make_id(file_id, sym_id, "imports_symbol"),
+                                src=file_id,
+                                dst=sym_id,
+                                type="imports_symbol",
+                                confidence=0.95,
+                                sources=["resolver"],
+                            )
+                        )
 
         # ── call refs → calls edges ──────────────────────────────────────────
         for caller_id, callee_name in call_refs:
             for callee_id in symbol_index.get(callee_name, []):
-                graph.add_edge(Edge(
-                    id=make_id(caller_id, callee_id, "calls"),
-                    src=caller_id,
-                    dst=callee_id,
-                    type="calls",
-                    confidence=0.8,
-                    sources=["tree_sitter"],
-                ))
+                graph.add_edge(
+                    Edge(
+                        id=make_id(caller_id, callee_id, "calls"),
+                        src=caller_id,
+                        dst=callee_id,
+                        type="calls",
+                        confidence=0.8,
+                        sources=["tree_sitter"],
+                    )
+                )
 
         # ── inherit refs → inherits edges ────────────────────────────────────
         for class_id, base_name in inherit_refs:
             for base_id in symbol_index.get(base_name, []):
                 node = graph.nodes.get(base_id)
                 if node and node.type == "class":
-                    graph.add_edge(Edge(
-                        id=make_id(class_id, base_id, "inherits"),
-                        src=class_id,
-                        dst=base_id,
-                        type="inherits",
-                        confidence=0.9,
-                        sources=["tree_sitter"],
-                    ))
+                    graph.add_edge(
+                        Edge(
+                            id=make_id(class_id, base_id, "inherits"),
+                            src=class_id,
+                            dst=base_id,
+                            type="inherits",
+                            confidence=0.9,
+                            sources=["tree_sitter"],
+                        )
+                    )
 
         # ── decorator refs → decorates edges ─────────────────────────────────
         # Edge direction: decorator → decorated  (reads "X decorates Y")
         for decorated_id, dec_name in decorator_refs:
             for dec_id in symbol_index.get(dec_name, []):
-                graph.add_edge(Edge(
-                    id=make_id(dec_id, decorated_id, "decorates"),
-                    src=dec_id,
-                    dst=decorated_id,
-                    type="decorates",
-                    confidence=0.9,
-                    sources=["tree_sitter"],
-                ))
+                graph.add_edge(
+                    Edge(
+                        id=make_id(dec_id, decorated_id, "decorates"),
+                        src=dec_id,
+                        dst=decorated_id,
+                        type="decorates",
+                        confidence=0.9,
+                        sources=["tree_sitter"],
+                    )
+                )
 
         # ── type refs → uses_type edges ───────────────────────────────────────
         for user_id, type_name in type_refs:
             for type_id in symbol_index.get(type_name, []):
                 node = graph.nodes.get(type_id)
                 if node and node.type == "class":
-                    graph.add_edge(Edge(
-                        id=make_id(user_id, type_id, "uses_type"),
-                        src=user_id,
-                        dst=type_id,
-                        type="uses_type",
-                        confidence=0.85,
-                        sources=["tree_sitter"],
-                    ))
+                    graph.add_edge(
+                        Edge(
+                            id=make_id(user_id, type_id, "uses_type"),
+                            src=user_id,
+                            dst=type_id,
+                            type="uses_type",
+                            confidence=0.85,
+                            sources=["tree_sitter"],
+                        )
+                    )
 
     return graph

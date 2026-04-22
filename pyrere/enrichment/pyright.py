@@ -1,5 +1,5 @@
 """
-src/enrichment/pyright.py
+pyrere/enrichment/pyright.py
 ──────────────────────────
 Runs pyright --outputjson and stamps type-level diagnostics onto CKG nodes
 as issues (tool="pyright").
@@ -21,15 +21,14 @@ import json
 import os
 import subprocess
 import sys
-from typing import Optional
 
 from pyrere.graph.models import CodeGraph
-from pyrere.utils.spatial import build_spatial_index, locate, stamp_issue
-
+from pyrere.utils.spatial import locate, stamp_issue
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _severity(sev: str) -> str:
     """Map pyright severity strings to our three-level scheme."""
@@ -37,10 +36,10 @@ def _severity(sev: str) -> str:
         return "error"
     if sev == "warning":
         return "warning"
-    return "info"   # pyright uses "information"
+    return "info"  # pyright uses "information"
 
 
-def _find_pyright_cmd() -> Optional[list[str]]:
+def _find_pyright_cmd() -> list[str] | None:
     """
     Return the command list that successfully runs pyright, or None if
     pyright is not installed.
@@ -53,7 +52,7 @@ def _find_pyright_cmd() -> Optional[list[str]]:
     for cmd in candidates:
         try:
             r = subprocess.run(
-                cmd + ["--version"],
+                [*cmd, "--version"],  # RUF005: unpacking instead of concatenation
                 capture_output=True,
                 timeout=15,
             )
@@ -67,6 +66,7 @@ def _find_pyright_cmd() -> Optional[list[str]]:
 # ─────────────────────────────────────────────────────────────────────────────
 # PUBLIC RUNNER
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def run_pyright(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
     """
@@ -83,7 +83,7 @@ def run_pyright(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
 
     try:
         result = subprocess.run(
-            cmd + ["--outputjson", repo_root],
+            [*cmd, "--outputjson", repo_root],  # RUF005: unpacking instead of concatenation
             capture_output=True,
             text=True,
             timeout=300,
@@ -111,19 +111,23 @@ def run_pyright(repo_root: str, graph: CodeGraph, spatial: dict) -> int:
         abs_path = os.path.abspath(diag.get("file", ""))
         # pyright line numbers are 0-indexed
         line = diag.get("range", {}).get("start", {}).get("line", 0) + 1
-        sev  = diag.get("severity", "information")
+        sev = diag.get("severity", "information")
         # rule is the pyright check name e.g. "reportMissingImports"
         rule = diag.get("rule") or "pyright"
-        msg  = diag.get("message", "").strip()
+        msg = diag.get("message", "").strip()
 
         owner = locate(graph, spatial, abs_path, line)
-        stamp_issue(graph, owner, {
-            "tool":     "pyright",
-            "code":     rule,
-            "message":  msg,
-            "line":     line,
-            "severity": _severity(sev),
-        })
+        stamp_issue(
+            graph,
+            owner,
+            {
+                "tool": "pyright",
+                "code": rule,
+                "message": msg,
+                "line": line,
+                "severity": _severity(sev),
+            },
+        )
         count += 1
 
     return count

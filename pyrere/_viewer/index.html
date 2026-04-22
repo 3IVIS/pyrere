@@ -4,7 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CKG Viewer</title>
-<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<!--
+  vis-network is loaded from the unpkg CDN at a pinned version (9.1.9).
+  Pinning prevents silent breakage if a future major release changes the API.
+
+  If you need offline support, download the file and place it alongside this
+  HTML:
+    curl -Lo _viewer/vis-network.min.js \
+      https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js
+
+  Then change the src below to: <script src="vis-network.min.js">
+-->
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <style>
 /* ── reset ─────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

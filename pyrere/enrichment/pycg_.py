@@ -1,5 +1,5 @@
 """
-src/enrichment/pycg_.py
+pyrere/enrichment/pycg_.py
 ────────────────────────
 Runs pycg (points-to call graph generator) against the repo and merges its
 output back into the CKG.
@@ -24,6 +24,7 @@ avoid hangs on very large repos; a warning is printed when the cap fires.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -31,9 +32,8 @@ import sys
 import tempfile
 
 from pyrere.graph.models import CodeGraph, Edge
-from pyrere.symbols.extractor import make_id
 from pyrere.ingestion.loader import load_python_files
-
+from pyrere.symbols.extractor import make_id
 
 _MAX_FILES = 200
 
@@ -42,14 +42,15 @@ _MAX_FILES = 200
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _build_qname_index(graph: CodeGraph, repo_root: str) -> dict[str, str]:
     """
     Return  dotted.qualified.Name → node_id  for every function and class.
 
     Qualified name = dotted_module_path + "." + node.name
     Examples:
-      src.aggregator.builder.build_graph  →  <node_id>
-      src.graph.models.CodeGraph          →  <node_id>
+      rere.aggregator.builder.build_graph  →  <node_id>
+      rere.graph.models.CodeGraph          →  <node_id>
 
     Note: nested functions (e.g. inner inside outer) would appear as
     "module.outer.inner" in pycg output but "module.inner" here.  The index
@@ -82,12 +83,14 @@ def _collect_entry_files(repo_root: str) -> list[str]:
     files = [os.path.abspath(p) for p in load_python_files(repo_root)]
     if len(files) > _MAX_FILES:
         print(
-            f"[enrichment] pycg: {len(files)} files found, "
-            f"capping at {_MAX_FILES} to avoid timeout"
+            f"[enrichment] pycg: {len(files)} files found, capping at {_MAX_FILES} to avoid timeout"
         )
         # Prefer files that look like entry points; fall back to first N
-        priority = [f for f in files if os.path.basename(f) in
-                    ("main.py", "run.py", "app.py", "cli.py", "__main__.py")]
+        priority = [
+            f
+            for f in files
+            if os.path.basename(f) in ("main.py", "run.py", "app.py", "cli.py", "__main__.py")
+        ]
         rest = [f for f in files if f not in priority]
         files = (priority + rest)[:_MAX_FILES]
     return files
@@ -111,6 +114,7 @@ def _pycg_available() -> bool:
 # PUBLIC RUNNER
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def run_pycg(repo_root: str, graph: CodeGraph) -> int:
     """
     Run pycg against the repo and merge call-graph results into `graph`.
@@ -133,11 +137,16 @@ def run_pycg(repo_root: str, graph: CodeGraph) -> int:
 
     try:
         result = subprocess.run(
-            [
-                sys.executable, "-m", "pycg",
-                "--package", repo_root,
-                "--output",  tmp_path,
-            ] + entry_files,
+            [  # RUF005: use iterable unpacking instead of list +
+                sys.executable,
+                "-m",
+                "pycg",
+                "--package",
+                repo_root,
+                "--output",
+                tmp_path,
+                *entry_files,
+            ],
             capture_output=True,
             text=True,
             timeout=300,
@@ -145,18 +154,13 @@ def run_pycg(repo_root: str, graph: CodeGraph) -> int:
 
         # Primary: read from output file
         cg: dict = {}
-        try:
-            with open(tmp_path) as fh:
-                cg = json.load(fh)
-        except (OSError, json.JSONDecodeError):
-            pass
+        with contextlib.suppress(OSError, json.JSONDecodeError), open(tmp_path) as fh:
+            cg = json.load(fh)
 
         # Fallback: some pycg versions write to stdout instead
         if not cg and result.stdout.strip():
-            try:
+            with contextlib.suppress(json.JSONDecodeError):  # SIM105
                 cg = json.loads(result.stdout.strip())
-            except json.JSONDecodeError:
-                pass
 
         if not cg:
             return 0
@@ -165,10 +169,8 @@ def run_pycg(repo_root: str, graph: CodeGraph) -> int:
         print("[enrichment] pycg timed out after 5 min — skipping")
         return 0
     finally:
-        try:
+        with contextlib.suppress(OSError):  # SIM105
             os.unlink(tmp_path)
-        except OSError:
-            pass
 
     added = 0
     for caller_qname, callees in cg.items():
@@ -192,14 +194,16 @@ def run_pycg(repo_root: str, graph: CodeGraph) -> int:
                 if "pycg" not in existing.sources:
                     existing.sources.append("pycg")
             else:
-                graph.add_edge(Edge(
-                    id=edge_id,
-                    src=caller_id,
-                    dst=callee_id,
-                    type="calls",
-                    confidence=0.85,
-                    sources=["pycg"],
-                ))
+                graph.add_edge(
+                    Edge(
+                        id=edge_id,
+                        src=caller_id,
+                        dst=callee_id,
+                        type="calls",
+                        confidence=0.85,
+                        sources=["pycg"],
+                    )
+                )
                 added += 1
 
     return added

@@ -5,11 +5,13 @@ from tree_sitter import Parser
 # and the modern per-language packages (tree-sitter >= 0.22).
 try:
     from tree_sitter_languages import get_language  # type: ignore
+
     PY_LANGUAGE = get_language("python")
     _LEGACY_API = True
 except ImportError:
-    from tree_sitter import Language  # type: ignore
     import tree_sitter_python as tspython  # type: ignore
+    from tree_sitter import Language  # type: ignore
+
     PY_LANGUAGE = Language(tspython.language())
     _LEGACY_API = False
 
