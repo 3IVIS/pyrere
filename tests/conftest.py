@@ -4,11 +4,11 @@ Shared fixtures for the pyrere test suite.
 
 import os
 import textwrap
+
 import pytest
 
 from pyrere.graph.models import CodeGraph, Edge, Node
 from pyrere.symbols.extractor import make_id
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FILESYSTEM HELPERS

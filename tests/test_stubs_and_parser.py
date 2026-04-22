@@ -7,7 +7,6 @@ Tests for:
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # pyrere.context — stub module
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,7 +19,7 @@ class TestContextStub:
     def test_attribute_access_raises(self):
         import pyrere.context
 
-        with pytest.raises(NotImplementedError, match="pyrere.context"):
+        with pytest.raises(NotImplementedError, match=r"pyrere\.context"):
             _ = pyrere.context.anything
 
     def test_error_message_contains_attribute_name(self):
@@ -42,7 +41,7 @@ class TestLlmStub:
     def test_attribute_access_raises(self):
         import pyrere.llm
 
-        with pytest.raises(NotImplementedError, match="pyrere.llm"):
+        with pytest.raises(NotImplementedError, match=r"pyrere\.llm"):
             _ = pyrere.llm.anything
 
     def test_error_message_contains_attribute_name(self):

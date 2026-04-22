@@ -16,7 +16,6 @@ from pyrere.aggregator.builder import (
 )
 from pyrere.symbols.extractor import ImportRef
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -229,7 +228,11 @@ class TestBuildGraph:
 
     def test_inherit_edges_created(self, tmp_path):
         write(str(tmp_path), "pkg/__init__.py", "")
-        write(str(tmp_path), "pkg/models.py", "class Base:\n    pass\n\nclass Child(Base):\n    pass\n")
+        write(
+            str(tmp_path),
+            "pkg/models.py",
+            "class Base:\n    pass\n\nclass Child(Base):\n    pass\n",
+        )
         graph = build_graph(str(tmp_path))
         inherit_edges = [e for e in graph.edges.values() if e.type == "inherits"]
         assert len(inherit_edges) >= 1

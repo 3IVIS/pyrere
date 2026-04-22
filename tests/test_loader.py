@@ -3,10 +3,10 @@ Tests for pyrere/ingestion/loader.py — load_python_files, _should_skip.
 """
 
 import os
+
 import pytest
 
 from pyrere.ingestion.loader import _should_skip, load_python_files
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # _should_skip

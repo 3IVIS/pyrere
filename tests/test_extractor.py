@@ -3,10 +3,8 @@ Tests for pyrere/symbols/extractor.py — make_id, ImportRef,
 _cyclomatic_complexity, extract_symbols.
 """
 
-import pytest
-
-from pyrere.symbols.extractor import ImportRef, _cyclomatic_complexity, extract_symbols, make_id
 from pyrere.parsing.parser import get_parser
+from pyrere.symbols.extractor import ImportRef, extract_symbols, make_id
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
@@ -110,20 +108,14 @@ class TestCyclomaticComplexity:
     def test_docstring_does_not_inflate(self):
         """Keywords inside docstrings must NOT count as branches."""
         code = (
-            'def foo():\n'
+            "def foo():\n"
             '    """if you call this while for is in the loop, it works"""\n'
-            '    return 1\n'
+            "    return 1\n"
         )
         assert self._complexity_of(code) == 1
 
     def test_nested_if_counts_each(self):
-        code = (
-            "def foo(a, b):\n"
-            "    if a:\n"
-            "        if b:\n"
-            "            return 1\n"
-            "    return 0\n"
-        )
+        code = "def foo(a, b):\n    if a:\n        if b:\n            return 1\n    return 0\n"
         assert self._complexity_of(code) == 3
 
 
@@ -134,7 +126,7 @@ class TestCyclomaticComplexity:
 
 class TestExtractFunctions:
     def test_simple_function(self):
-        nodes, edges, *_ = parse_and_extract("def foo():\n    pass\n")
+        nodes, _edges, *_ = parse_and_extract("def foo():\n    pass\n")
         funcs = [n for n in nodes if n.type == "function"]
         assert any(n.name == "foo" for n in funcs)
 
@@ -340,19 +332,14 @@ class TestExtractRefs:
 
 class TestExtractEdgeCases:
     def test_empty_file(self):
-        nodes, edges, import_refs, call_refs, inherit_refs, decorator_refs, type_refs = (
+        nodes, _edges, _import_refs, _call_refs, _inherit_refs, _decorator_refs, _type_refs = (
             parse_and_extract("")
         )
         assert nodes == []
-        assert edges == []
+        assert _edges == []
 
     def test_deeply_nested_functions(self):
-        code = (
-            "def outer():\n"
-            "    def middle():\n"
-            "        def inner():\n"
-            "            pass\n"
-        )
+        code = "def outer():\n    def middle():\n        def inner():\n            pass\n"
         nodes, *_ = parse_and_extract(code)
         names = {n.name for n in nodes if n.type == "function"}
         assert {"outer", "middle", "inner"} == names

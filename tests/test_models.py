@@ -2,10 +2,7 @@
 Tests for pyrere/graph/models.py — Node, Edge, CodeGraph.
 """
 
-import pytest
 from pyrere.graph.models import CodeGraph, Edge, Node
-from pyrere.symbols.extractor import make_id
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # NODE

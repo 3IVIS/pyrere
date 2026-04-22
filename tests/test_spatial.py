@@ -4,9 +4,10 @@ locate, stamp_issue.
 """
 
 import os
+
 import pytest
 
-from pyrere.graph.models import CodeGraph, Edge, Node
+from pyrere.graph.models import CodeGraph, Node
 from pyrere.symbols.extractor import make_id
 from pyrere.utils.spatial import (
     build_spatial_index,
@@ -15,7 +16,6 @@ from pyrere.utils.spatial import (
     module_node_for,
     stamp_issue,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FIXTURES
@@ -39,9 +39,9 @@ def graph_with_spans():
     outer_id = make_id(file_path, "outer")
     inner_id = make_id(file_path, "inner")
 
-    g.add_node(Node(id=mod_id,   name="a.py",  type="module",   file=file_path, span=(0,  20)))
-    g.add_node(Node(id=outer_id, name="outer", type="function", file=file_path, span=(1,  15)))
-    g.add_node(Node(id=inner_id, name="inner", type="function", file=file_path, span=(3,   8)))
+    g.add_node(Node(id=mod_id, name="a.py", type="module", file=file_path, span=(0, 20)))
+    g.add_node(Node(id=outer_id, name="outer", type="function", file=file_path, span=(1, 15)))
+    g.add_node(Node(id=inner_id, name="inner", type="function", file=file_path, span=(3, 8)))
 
     return g, file_path, mod_id, outer_id, inner_id
 
@@ -105,16 +105,16 @@ class TestBuildSpatialIndex:
 
 class TestFindOwner:
     def test_returns_innermost_node(self, graph_with_spans):
-        g, file_path, mod_id, outer_id, inner_id = graph_with_spans
-        idx = build_spatial_index(g)
+        _g, file_path, _mod_id, _outer_id, inner_id = graph_with_spans
+        idx = build_spatial_index(_g)
         entries = idx[file_path]
         # line 5 is inside inner (3-8) which is inside outer (1-15)
         result = find_owner(entries, line=5)
         assert result == inner_id
 
     def test_returns_outer_when_not_in_inner(self, graph_with_spans):
-        g, file_path, mod_id, outer_id, inner_id = graph_with_spans
-        idx = build_spatial_index(g)
+        _g, file_path, _mod_id, outer_id, _inner_id = graph_with_spans
+        idx = build_spatial_index(_g)
         entries = idx[file_path]
         # line 12 is in outer (1-15) but NOT in inner (3-8)
         result = find_owner(entries, line=12)
@@ -131,8 +131,8 @@ class TestFindOwner:
         assert find_owner([], line=5) is None
 
     def test_exact_boundary_line(self, graph_with_spans):
-        g, file_path, mod_id, outer_id, inner_id = graph_with_spans
-        idx = build_spatial_index(g)
+        _g, file_path, _mod_id, _outer_id, inner_id = graph_with_spans
+        idx = build_spatial_index(_g)
         entries = idx[file_path]
         # line 3 is the start of inner
         result = find_owner(entries, line=3)
@@ -168,7 +168,7 @@ class TestModuleNodeFor:
 
 class TestLocate:
     def test_locates_inner_function(self, graph_with_spans):
-        g, file_path, mod_id, outer_id, inner_id = graph_with_spans
+        g, file_path, _mod_id, _outer_id, inner_id = graph_with_spans
         idx = build_spatial_index(g)
         assert locate(g, idx, file_path, line=5) == inner_id
 
@@ -191,14 +191,14 @@ class TestLocate:
 
 class TestStampIssue:
     def test_stamps_issue_onto_node(self, graph_with_spans):
-        g, file_path, mod_id, *_ = graph_with_spans
+        g, _file_path, mod_id, *_ = graph_with_spans
         issue = {"tool": "ruff", "code": "E501", "message": "line too long", "line": 2}
         stamp_issue(g, mod_id, issue)
         assert issue in g.nodes[mod_id].metadata["issues"]
 
     def test_multiple_issues_appended(self, graph_with_spans):
-        g, file_path, mod_id, *_ = graph_with_spans
-        stamp_issue(g, mod_id, {"tool": "ruff",   "code": "E501", "message": "x", "line": 1})
+        g, _file_path, mod_id, *_ = graph_with_spans
+        stamp_issue(g, mod_id, {"tool": "ruff", "code": "E501", "message": "x", "line": 1})
         stamp_issue(g, mod_id, {"tool": "bandit", "code": "B101", "message": "y", "line": 2})
         assert len(g.nodes[mod_id].metadata["issues"]) == 2
 
@@ -207,5 +207,7 @@ class TestStampIssue:
         # Should not raise
 
     def test_unknown_node_id_is_ignored(self, empty_graph):
-        stamp_issue(empty_graph, "nonexistent", {"tool": "ruff", "code": "E501", "message": "", "line": 1})
+        stamp_issue(
+            empty_graph, "nonexistent", {"tool": "ruff", "code": "E501", "message": "", "line": 1}
+        )
         # Should not raise
