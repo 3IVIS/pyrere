@@ -83,7 +83,7 @@ jobs:
         run: pip install -e ".[all,dev]"
 
       - name: Run integration tests
-        run: pytest -m "integration"
+        run: pytest -m "integration" || [ $? -eq 5 ]
 
   build:
     name: Build distribution

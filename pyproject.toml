@@ -214,3 +214,6 @@ exclude                = ["_viewer/", "build/", "dist/"]
 testpaths    = ["tests"]
 addopts      = "-ra -q --tb=short"
 python_files = ["test_*.py", "*_test.py"]
+markers      = [
+    "integration: marks tests that invoke real external tools (deselect with '-m not integration')",
+]
